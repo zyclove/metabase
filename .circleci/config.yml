@@ -767,7 +767,9 @@ jobs:
                   - /home/circleci/metabase/metabase/modules/drivers/googleanalytics/target
                   - /home/circleci/metabase/metabase/modules/drivers/mongo/target
                   - /home/circleci/metabase/metabase/modules/drivers/oracle/target
+                  - /home/circleci/metabase/metabase/modules/drivers/presto-common/target
                   - /home/circleci/metabase/metabase/modules/drivers/presto/target
+                  - /home/circleci/metabase/metabase/modules/drivers/presto-jdbc/target
                   - /home/circleci/metabase/metabase/modules/drivers/redshift/target
                   - /home/circleci/metabase/metabase/modules/drivers/snowflake/target
                   - /home/circleci/metabase/metabase/modules/drivers/sparksql/target
