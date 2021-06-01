@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import React, { Component } from "react";
-import { t } from "ttag";
 import PropTypes from "prop-types";
+import { t } from "ttag";
 import cx from "classnames";
 import moment from "moment";
 import _ from "underscore";
