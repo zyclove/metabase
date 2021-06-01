@@ -1,6 +1,6 @@
+/* eslint-disable react/prop-types */
 import React from "react";
 import { t } from "ttag";
-import PropTypes from "prop-types";
 import cx from "classnames";
 import Button from "metabase/components/Button";
 import { getOperator as datePickerOperator } from "../filters/pickers/DatePicker";
@@ -27,9 +27,6 @@ export default function FilterPopoverFooter({
     PopoverFooter: !isSidebar,
   });
 
-  const buttonText = isNew ? t`Add filter` : t`Update filter`;
-  const isButtonDisabled = !filter.isValid();
-
   return (
     <div className={containerClassName}>
       <FilterOptions
@@ -41,22 +38,13 @@ export default function FilterPopoverFooter({
         <Button
           data-ui-tag="add-filter"
           purple
-          disabled={isButtonDisabled}
+          disabled={!filter.isValid()}
           ml="auto"
           onClick={onCommit}
         >
-          {buttonText}
+          {isNew ? t`Add filter` : t`Update filter`}
         </Button>
       )}
     </div>
   );
 }
-
-FilterPopoverFooter.propTypes = {
-  filter: PropTypes.object,
-  isNew: PropTypes.bool,
-  isSidebar: PropTypes.bool,
-  onFilterChange: PropTypes.func,
-  onCommit: PropTypes.func,
-  className: PropTypes.string,
-};
