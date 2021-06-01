@@ -2,6 +2,7 @@
     "Presto JDBC driver. See https://prestodb.io/docs/current/ for complete dox."
     (:require [clojure.java.jdbc :as jdbc]
               [clojure.set :as set]
+              [clojure.string :as str]
               [clojure.tools.logging :as log]
               [metabase.db.spec :as db.spec]
               [metabase.driver :as driver]
@@ -23,15 +24,64 @@
   ;; seems like we can just delegate to the Presto implementation for this?
   (presto-common/presto-type->base-type (if (keyword? field-type) (name field-type) field-type)))
 
+;;; Kerberos related definitions
+(def ^:private ^:const kerb-props->url-param-names
+  {:kerberos-principal "KerberosPrincipal"
+   :kerberos-remote-service-name "KerberosRemoteServiceName"
+   :kerberos-use-canonical-hostname "KerberosUseCanonicalHostname"
+   :kerberos-credential-cache-path "KerberosCredentialCachePath"
+   :kerberos-keytab-path "KerberosKeytabPath"
+   :kerberos-service-principal-pattern "KerberosServicePrincipalPattern"
+   :kerberos-config-path "KerberosConfigPath"})
+
+(defn- details->kerberos-url-params [details]
+  (let [remove-blank-vals (fn [m] (into {} (remove (fn [[_ v]]
+                                                       (or (nil? v) (= "" v))) m)))
+        ks                (keys kerb-props->url-param-names)]
+    (-> (select-keys details ks)
+      remove-blank-vals
+      (set/rename-keys kerb-props->url-param-names))))
+
+#_(s/defn ^:private details->uri
+          [{:keys [ssl host port kerberos] :as details} :- PrestoConnectionDetails, path]
+          (let [conn-str  (str (if ssl "https" "http") "://" host ":" port path)
+                addl-opts (cond
+                           (Boolean. kerberos)
+                           (let [ks (keys kerb-props->url-param-names)]
+                                (-> (select-keys details ks)
+                                    remove-blank-kerb-props
+                                    (set/rename-keys kerb-props->url-param-names))))]
+               (if-not (empty? addl-opts)
+                       (let [opts-str (sql-jdbc.common/additional-opts->string :url addl-opts)]
+                            (sql-jdbc.common/conn-str-with-additional-opts conn-str :url opts-str))
+                       conn-str)))
+
+(defn- prepare-addl-opts [{:keys [SSL kerberos additional-options] :as details}]
+  (if kerberos
+    (if-not SSL
+      (throw (ex-info (trs "SSL must be enabled to use Kerberos authentication")
+                      {:db-details details}))
+      (let [det (update details
+                        :additional-options
+                        str
+                        ;; add separator if there are already additional-options
+                        (if-not (str/blank? additional-options) "&")
+                        ;; convert Kerberos options map to URL string
+                        (sql-jdbc.common/additional-opts->string :url (details->kerberos-url-params details)))]
+        ;; finally, remove the standalone Kerberos properties from details map
+        (apply dissoc (cons det (keys kerb-props->url-param-names)))))
+    details))
+
 (defn- jdbc-spec
   [{:keys [host port catalog]
     :or   {host "localhost", port 5432, catalog ""}
-    :as   opts}]
-  (-> (merge
-       {:classname                     "io.prestosql.jdbc.PrestoDriver"
-        :subprotocol                   "presto"
-        :subname                       (db.spec/make-subname host port catalog)}
-       (dissoc opts :host :port :db :catalog))
+    :as   details}]
+  (-> details
+      (merge {:classname   "io.prestosql.jdbc.PrestoDriver"
+              :subprotocol "presto"
+              :subname     (db.spec/make-subname host port catalog)})
+      prepare-addl-opts
+      (dissoc :host :port :db :catalog :tunnel-enabled :engine :kerberos)
       sql-jdbc.common/handle-additional-options))
 
 (defmethod sql-jdbc.conn/connection-details->spec :presto-jdbc
